@@ -25,29 +25,48 @@ def f1(y_true, y_pred):
     return K.mean(f1)
 
 
+def f1_loss(y_true, y_pred):
+    return 1-f1(y_true, y_pred)
 
 
 train_df = img_proc_scikit.TrainData('train.csv').make_train()
-class_weights = img_proc_scikit.TrainData('train.csv').calc_weights(labels_dict=img_proc_scikit.TrainData('train.csv').make_histdata(train_df), method='simple')
+#class_weights = img_proc_scikit.TrainData('train.csv').calc_weights(labels_dict=img_proc_scikit.TrainData('train.csv').make_histdata(train_df), method='simple')
 
 img_rows, img_cols = 299, 299  # Resolution of inputs
 channel = 3
 num_classes = 28
 batch_size = 64
-epochs = 20
+epochs = 10
+classes = list(range(28))
 
-train_data_dir = 'classes_dir'
+train_data_dir = 'new_train'
 #    validation_data_dir = 'data/validation'
-nb_train_samples = 50700
+nb_train_samples = 31072
 #    nb_validation_samples = 800
 
-train_datagen = ImageDataGenerator()
-
-train_generator = train_datagen.flow_from_directory(
-        train_data_dir,
-        target_size=(img_rows, img_cols),
-        batch_size=batch_size,
-        class_mode='categorical')
+train_datagen = ImageDataGenerator(validation_split=0.25)
+train_generator = train_datagen.flow_from_dataframe(dataframe=train_df,
+                                                    directory=train_data_dir,
+                                                    x_col='Id',
+                                                    y_col='Target',
+                                                    has_ext=False,
+                                                    classes=classes,
+                                                    shuffle=True,
+                                                    subset='training',
+                                                    target_size=(img_rows, img_cols),
+                                                    batch_size=batch_size,
+                                                    class_mode='categorical')
+validation_generator = train_datagen.flow_from_dataframe(dataframe=train_df,
+                                                         directory=train_data_dir,
+                                                         x_col='Id',
+                                                         y_col='Target',
+                                                         has_ext=False,
+                                                         classes=classes,
+                                                         subset='validation',
+                                                         shuffle=True,
+                                                         target_size=(img_rows, img_cols),
+                                                         batch_size=batch_size,
+                                                         class_mode='categorical')
 
 # create the base pre-trained model
 base_model = InceptionV3(weights='imagenet', include_top=False)
@@ -58,7 +77,7 @@ x = GlobalAveragePooling2D()(x)
 # let's add a fully-connected layer
 x = Dense(1024, activation='relu')(x)
 # and a logistic layer -- let's say we have 2 classes
-predictions = Dense(28, activation='softmax')(x)
+predictions = Dense(28, activation='sigmoid')(x)
 
 # this is the model we will train
 model = Model(inputs=base_model.input, outputs=predictions)
@@ -69,10 +88,15 @@ for layer in base_model.layers:
     layer.trainable = False
 
 # compile the model (should be done *after* setting layers to non-trainable)
-model.compile(optimizer='Adadelta', loss='categorical_crossentropy', metrics=['accuracy', f1])
+model.compile(optimizer='Adadelta', loss=f1_loss, metrics=['accuracy', f1])
 
 # Start Fine-tuning
-model.fit_generator(train_generator, steps_per_epoch=nb_train_samples // batch_size, epochs=epochs, verbose=1, class_weight=class_weights)
+model.fit_generator(train_generator,
+                    steps_per_epoch=nb_train_samples // batch_size,
+                    epochs=epochs,
+                    verbose=1,
+                    validation_data=validation_generator,
+                    validation_steps=3)
 # at this point, the top layers are well trained and we can start fine-tuning
 # convolutional layers from inception V3. We will freeze the bottom N layers
 # and train the remaining top layers.
@@ -92,9 +116,14 @@ for layer in model.layers[249:]:
 # we need to recompile the model for these modifications to take effect
 # we use SGD with a low learning rate
 from keras.optimizers import SGD
-model.compile(optimizer=SGD(lr=0.0001, momentum=0.9), loss='categorical_crossentropy', metrics=['accuracy', f1])
-epochs = 10
+model.compile(optimizer=SGD(lr=0.0001, momentum=0.9), loss=f1_loss, metrics=['accuracy', f1])
+epochs = 20
 # we train our model again (this time fine-tuning the top 2 inception blocks
 # alongside the top Dense layers
-model.fit_generator(train_generator, steps_per_epoch=nb_train_samples // batch_size, epochs=epochs, verbose=1, class_weight=class_weights)
+model.fit_generator(train_generator,
+                    steps_per_epoch=nb_train_samples // batch_size,
+                    epochs=epochs,
+                    verbose=1,
+                    validation_data=validation_generator,
+                    validation_steps=3)
 model.save_weights('InceptionV3_ft.h5')

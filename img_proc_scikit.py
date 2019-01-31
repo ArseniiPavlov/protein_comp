@@ -20,11 +20,11 @@ class TrainData:
         train_labels = train_labels.astype('str')
         train_labels[class_ID] = train_labels[class_ID].apply(lambda x: x.split(' '))
         train_labels[class_ID] = train_labels[class_ID].apply(lambda x: list(map(lambda x: int(x), x)))
-        train_labels['Cat'] = None
+        '''train_labels['Cat'] = None
         for index in range(len(train_labels[class_ID])):
             train_labels['Cat'][index] = [0] * 28
             for index_val in train_labels[class_ID][index]:
-                train_labels['Cat'][index][index_val] = 1
+                train_labels['Cat'][index][index_val] = 1'''
         return train_labels
 
     def make_histdata(self, data):
@@ -82,7 +82,7 @@ def save_rgb_image(img_id, classes, img_dir, labeled_dir, save_img=True):
     if save_img:
         for number, identifier in enumerate(classes):
             if identifier == 1:
-                class_path = labeled_dir + '/'+str(number)
+                class_path = labeled_dir #+ '/'+str(number)
                 if not path.exists(class_path):
                     makedirs(class_path)
                 rgb_img_path = path.join(class_path, img_id + '.png')
@@ -95,7 +95,7 @@ def save_rgb_image(img_id, classes, img_dir, labeled_dir, save_img=True):
 #save_rgb_image('000a6c98-bb9b-11e8-b2b9-ac1f6b6435d0', [1], train_dir)
 if __name__ == '__main__':
     train_dir = getcwd() + '\\train'
-    classes_dir = getcwd() + '\\classes_dir'
+    classes_dir = getcwd() + '\\new_train'
     if not path.exists(classes_dir):
         makedirs(classes_dir)
 
@@ -103,7 +103,7 @@ if __name__ == '__main__':
     i = 0
 
     for line in train_df.values:
-        save_rgb_image(line[0], line[2], train_dir, classes_dir)
+        save_rgb_image(line[0], [1], train_dir, classes_dir)
         i += 1
         if (i % 100) == 0:
             print('{} images were saved'.format(i))
