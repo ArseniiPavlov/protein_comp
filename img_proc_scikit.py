@@ -18,6 +18,7 @@ class TrainData:
     def make_train(self, class_ID='Target'):
         train_labels = pd.read_csv(self.filename)
         train_labels = train_labels.astype('str')
+        train_labels['Id'] = train_labels['Id'].apply(lambda x: x + '.png')
         train_labels[class_ID] = train_labels[class_ID].apply(lambda x: x.split(' '))
         train_labels[class_ID] = train_labels[class_ID].apply(lambda x: list(map(lambda x: int(x), x)))
         '''train_labels['Cat'] = None

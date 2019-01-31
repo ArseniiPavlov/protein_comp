@@ -3,7 +3,7 @@ from keras.preprocessing import image
 from keras.models import Model
 from keras.layers import Dense, GlobalAveragePooling2D
 from keras import backend as K
-from keras.preprocessing.image import ImageDataGenerator
+from keras_preprocessing.image import ImageDataGenerator
 import img_proc_scikit
 import tensorflow as tf
 from PIL import Image, ImageFile
@@ -32,14 +32,14 @@ def f1_loss(y_true, y_pred):
 train_df = img_proc_scikit.TrainData('train.csv').make_train()
 #class_weights = img_proc_scikit.TrainData('train.csv').calc_weights(labels_dict=img_proc_scikit.TrainData('train.csv').make_histdata(train_df), method='simple')
 
-img_rows, img_cols = 299, 299  # Resolution of inputs
+img_rows, img_cols = 512, 512  # Resolution of inputs
 channel = 3
 num_classes = 28
-batch_size = 64
-epochs = 10
+batch_size = 32
+epochs = 5
 classes = list(range(28))
 
-train_data_dir = 'new_train'
+train_data_dir = r"C:\Users\User\SSD\Protein_comp\new_train"
 #    validation_data_dir = 'data/validation'
 nb_train_samples = 31072
 #    nb_validation_samples = 800
@@ -49,7 +49,6 @@ train_generator = train_datagen.flow_from_dataframe(dataframe=train_df,
                                                     directory=train_data_dir,
                                                     x_col='Id',
                                                     y_col='Target',
-                                                    has_ext=False,
                                                     classes=classes,
                                                     shuffle=True,
                                                     subset='training',
@@ -60,7 +59,6 @@ validation_generator = train_datagen.flow_from_dataframe(dataframe=train_df,
                                                          directory=train_data_dir,
                                                          x_col='Id',
                                                          y_col='Target',
-                                                         has_ext=False,
                                                          classes=classes,
                                                          subset='validation',
                                                          shuffle=True,
@@ -69,7 +67,7 @@ validation_generator = train_datagen.flow_from_dataframe(dataframe=train_df,
                                                          class_mode='categorical')
 
 # create the base pre-trained model
-base_model = InceptionV3(weights='imagenet', include_top=False)
+base_model = InceptionV3(weights='imagenet', include_top=False, input_shape=(512, 512, 3))
 
 # add a global spatial average pooling layer
 x = base_model.output
@@ -88,7 +86,7 @@ for layer in base_model.layers:
     layer.trainable = False
 
 # compile the model (should be done *after* setting layers to non-trainable)
-model.compile(optimizer='Adadelta', loss=f1_loss, metrics=['accuracy', f1])
+model.compile(optimizer='Adadelta', loss='categorical_crossentropy', metrics=['accuracy', f1])
 
 # Start Fine-tuning
 model.fit_generator(train_generator,
@@ -96,7 +94,7 @@ model.fit_generator(train_generator,
                     epochs=epochs,
                     verbose=1,
                     validation_data=validation_generator,
-                    validation_steps=3)
+                    validation_steps=1)
 # at this point, the top layers are well trained and we can start fine-tuning
 # convolutional layers from inception V3. We will freeze the bottom N layers
 # and train the remaining top layers.
@@ -116,7 +114,7 @@ for layer in model.layers[249:]:
 # we need to recompile the model for these modifications to take effect
 # we use SGD with a low learning rate
 from keras.optimizers import SGD
-model.compile(optimizer=SGD(lr=0.0001, momentum=0.9), loss=f1_loss, metrics=['accuracy', f1])
+model.compile(optimizer=SGD(lr=0.0001, momentum=0.9), loss='categorical_crossentropy', metrics=['accuracy', f1])
 epochs = 20
 # we train our model again (this time fine-tuning the top 2 inception blocks
 # alongside the top Dense layers
